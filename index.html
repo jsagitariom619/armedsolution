@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0b1932">
+  <meta name="description" content="Medidor de objetos con AR y registro de medidas corporales con foto calibrada.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+  <title>Medidor AR — MedSolution</title>
+</head>
+<body>
+  <main id="dashboard" class="page">
+    <header class="topbar">
+      <div class="brand-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><rect x="3" y="8" width="26" height="16" rx="4" stroke="currentColor" stroke-width="2"/><path d="M8 13v5m5-5v3m5-3v5m5-5v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+      <div><p class="eyebrow">MEDSOLUTION</p><strong>Medidor AR</strong></div>
+      <span class="version">BETA · v2</span>
+    </header>
+
+    <nav class="workspace-tabs" role="tablist" aria-label="Módulos de medición">
+      <button class="workspace-tab active" role="tab" data-workspace="objects" aria-selected="true">▱ Objetos y espacios</button>
+      <button class="workspace-tab" role="tab" data-workspace="body" aria-selected="false">♙ Medidas corporales</button>
+    </nav>
+    <div data-workspace-panel="objects">
+    <section class="hero">
+      <span class="hero-chip"><span class="pulse"></span> MEDICIÓN CON REALIDAD AUMENTADA</span>
+      <h1>Tu cámara es<br><em>tu cinta métrica.</em></h1>
+      <p>Marca puntos sobre superficies reales y obtén distancias y áreas aproximadas desde tu celular.</p>
+      <div class="hero-pattern" aria-hidden="true"><span></span><span></span><span></span></div>
+    </section>
+
+    <section class="choose" aria-label="Tipo de medición">
+      <h2>¿Qué deseas medir?</h2>
+      <div class="modes">
+        <button class="mode selected" data-mode="length" aria-pressed="true"><span class="mode-icon">↔</span><b>Distancia</b><small>2 puntos</small></button>
+        <button class="mode" data-mode="area" aria-pressed="false"><span class="mode-icon">▱</span><b>Área</b><small>3 o más puntos</small></button>
+        <button class="mode" data-mode="perimeter" aria-pressed="false"><span class="mode-icon">⬡</span><b>Perímetro</b><small>3 o más puntos</small></button>
+      </div>
+      <button id="start" class="primary"><span>Iniciar cámara AR</span><span aria-hidden="true">↗</span></button>
+      <p id="compat" class="compat" role="status">Verificando compatibilidad AR...</p>
+    </section>
+
+    <section class="howto">
+      <h2>Cómo funciona</h2>
+      <div class="steps"><div><span>01</span><p>Mueve el teléfono lentamente para detectar una superficie.</p></div><div><span>02</span><p>Apunta el centro de la pantalla y marca los puntos.</p></div><div><span>03</span><p>Guarda tus medidas y expórtalas cuando quieras.</p></div></div>
+    </section>
+
+    <section class="history-head"><div><h2>Mediciones guardadas</h2><p>Almacenadas en este dispositivo</p></div><button id="export" class="outline">Exportar CSV</button></section>
+    <div id="records" class="records" aria-live="polite"></div>
+    </div>
+    <div data-workspace-panel="body" hidden>
+      <section class="body-hero">
+        <span class="hero-chip"><span class="pulse"></span> ANTROPOMETRÍA ASISTIDA</span>
+        <h1>Medidas corporales</h1>
+        <p>Fotografía, calibración de escala y puntos anatómicos. Valores orientativos que puedes guardar sin conservar la foto.</p>
+        <div class="hero-stat"><strong>2 modos</strong><span>Fotografía calibrada · Registro con cinta métrica</span></div>
+      </section>
+      <section class="choose body-panel">
+        <div class="section-number">01 / REGISTRO</div>
+        <h2>Referencia de la medición <small>(opcional)</small></h2>
+        <label class="field-label" for="body-code">Código o referencia anónima</label>
+        <input id="body-code" class="field-input" maxlength="60" placeholder="Ej. EVALUACIÓN-001" autocomplete="off">
+        <p class="field-info">El código solo se conserva en tu dispositivo junto con las medidas. Evita escribir nombres completos.</p>
+      </section>
+      <section class="choose body-panel">
+        <div class="section-number">02 / FOTOGRAFÍA</div>
+        <h2>Medición asistida por cámara</h2>
+        <p class="field-info">Toma una fotografía de cuerpo entero o elige una imagen. Coloca una regla de longitud conocida en el mismo plano que la zona a medir.</p>
+        <label class="upload-photo" for="photo-upload"><span>＋</span> Tomar foto o elegir imagen</label>
+        <input id="photo-upload" type="file" accept="image/*" class="visually-hidden">
+        <div class="photo-stage" id="photo-stage">
+          <div id="photo-placeholder" class="photo-placeholder"><span>◎</span><strong>Sin fotografía</strong><small>La imagen se procesa localmente y no se guarda en el historial.</small></div>
+          <canvas id="body-canvas" hidden aria-label="Fotografía con puntos para calibrar o medir"></canvas>
+        </div>
+        <div class="tool-tabs" aria-label="Herramienta corporal">
+          <button type="button" class="tool-tab selected" data-body-tool="calibrate" aria-pressed="true">1 · Calibrar escala</button>
+          <button type="button" class="tool-tab" data-body-tool="measure" aria-pressed="false">2 · Medir segmento</button>
+        </div>
+        <p class="tool-help" id="tool-help"></p>
+        <label class="field-label" for="reference-cm">Longitud real de la referencia (cm)</label>
+        <div class="input-row"><input class="field-input" id="reference-cm" type="number" value="30" min="0.1" max="1000" step="0.1" inputmode="decimal"><button id="reset-scale" class="outline" type="button">Recalibrar</button></div>
+        <p id="scale-note" class="field-info"></p>
+        <label class="field-label" for="photo-measure-type">Segmento a marcar manualmente</label>
+        <select class="field-input" id="photo-measure-type">
+          <option value="height">Estatura: parte superior de cabeza a talón</option>
+          <option value="shoulders">Ancho de hombros</option>
+          <option value="hips">Ancho frontal de cadera</option>
+          <option value="arbitrary">Otro segmento corporal</option>
+        </select>
+        <div class="input-row" style="margin-top:12px"><button id="body-undo" class="outline" type="button" disabled>Deshacer punto</button><div class="body-result">Resultado <strong id="body-result">—</strong></div></div>
+        <button id="save-body-photo" class="primary full-button" disabled>Guardar medida corporal</button>
+        <div class="body-ai">
+          <div class="section-number">OPCIONAL · DETECCIÓN DE POSTURA</div>
+          <p>La IA identifica articulaciones, no perímetros ni medidas clínicas exactas. Requiere internet la primera vez.</p>
+          <button id="auto-pose" class="outline full-button" disabled>Detectar postura con IA</button>
+          <label class="field-label" for="auto-measure-type">Segmento anatómico detectado</label>
+          <select class="field-input" id="auto-measure-type">
+            <option value="shoulders">Ancho de hombros</option>
+            <option value="hips">Ancho frontal de cadera</option>
+            <option value="armL">Brazo izquierdo (por codo)</option>
+            <option value="armR">Brazo derecho (por codo)</option>
+            <option value="legL">Pierna izquierda (por rodilla)</option>
+            <option value="legR">Pierna derecha (por rodilla)</option>
+          </select>
+          <button id="use-auto" class="outline full-button">Usar puntos detectados</button>
+        </div>
+      </section>
+      <section class="choose body-panel">
+        <div class="section-number">03 / CINTA MÉTRICA</div>
+        <h2>Registrar perímetros</h2>
+        <p class="field-info">Para perímetros de cintura, tórax, cadera, brazo y muslo utiliza una cinta métrica. Una sola foto no permite medirlos con fiabilidad.</p>
+        <label class="field-label" for="manual-type">Medida</label>
+        <select class="field-input" id="manual-type">
+          <option value="waist">Perímetro de cintura</option><option value="chest">Perímetro torácico</option>
+          <option value="hipCirc">Perímetro de cadera</option><option value="armCirc">Perímetro del brazo</option>
+          <option value="thighCirc">Perímetro del muslo</option><option value="height">Estatura</option><option value="other">Otra medida</option>
+        </select>
+        <label class="field-label" for="manual-cm">Valor real (centímetros)</label>
+        <input class="field-input" id="manual-cm" type="number" min="0.1" max="350" step="0.1" inputmode="decimal" placeholder="Ej. 82.5">
+        <button id="save-manual" class="primary full-button">Guardar medida manual</button>
+      </section>
+      <p class="body-alert" id="body-message" role="status">Usa buena iluminación, fondo visible y una referencia física al mismo nivel de profundidad de la zona a medir.</p>
+      <section class="history-head"><div><h2>Historial corporal</h2><p>Solo en este dispositivo · Sin guardar imágenes</p></div><button id="export-body" class="outline">Exportar CSV</button></section>
+      <div id="body-records" class="records" aria-live="polite"></div>
+    </div>
+    <footer>Mediciones orientativas. No sustituyen instrumentos de precisión ni mediciones antropométricas clínicas validadas. <span>Registros guardados localmente. No se suben fotografías al servidor de la aplicación.</span></footer>
+  </main>
+
+  <!-- La capa HTML se muestra sobre la vista AR suministrada por el navegador. -->
+  <div id="ar-ui" class="ar-ui" hidden>
+    <div class="ar-top">
+      <button id="close-ar" class="round" aria-label="Cerrar cámara AR">✕</button>
+      <div class="ar-head"><strong id="ar-mode-label">Distancia</strong><small id="tracking">Buscando superficies...</small></div>
+      <div class="ar-count" id="ar-count">0 puntos</div>
+    </div>
+    <div class="reticle" id="reticle" aria-hidden="true"><span></span></div>
+    <p class="ar-hint" id="ar-hint">Mueve el celular lentamente para detectar el entorno.</p>
+    <div class="ar-bottom">
+      <div class="readout"><span id="result-label">Medición actual</span><strong id="result">—</strong></div>
+      <p id="ar-tip" class="ar-tip">Apunta al primer punto y pulsa «Marcar punto».</p>
+      <div class="ar-buttons"><button id="undo" class="secondary">Deshacer</button><button id="mark" class="primary" disabled>＋ Marcar punto</button></div>
+      <button id="save" class="save" disabled>Guardar medición</button>
+    </div>
+  </div>
+  <canvas id="xr-canvas" aria-hidden="true"></canvas>
+  <script src="app.js" defer></script>
+  <script src="body.js" defer></script>
+</body>
+</html>

@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=4">
   <title>Medidor AR — MedSolution</title>
 </head>
 <body>
@@ -18,7 +18,7 @@
     <header class="topbar">
       <div class="brand-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><rect x="3" y="8" width="26" height="16" rx="4" stroke="currentColor" stroke-width="2"/><path d="M8 13v5m5-5v3m5-3v5m5-5v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
       <div><p class="eyebrow">MEDSOLUTION</p><strong>Medidor AR</strong></div>
-      <span class="version">BETA · v2</span>
+      <span class="version">BETA · v2.4</span>
     </header>
 
     <nav class="workspace-tabs" role="tablist" aria-label="Módulos de medición">
@@ -134,7 +134,7 @@
   <div id="ar-ui" class="ar-ui" hidden>
     <div class="ar-top">
       <button id="close-ar" class="round" aria-label="Cerrar cámara AR">✕</button>
-      <div class="ar-head"><strong id="ar-mode-label">Distancia</strong><small id="tracking">Buscando superficies...</small></div>
+      <div class="ar-head"><strong id="ar-mode-label">Distancia</strong><small id="tracking">Buscando superficies...</small><small class="ar-build">CRUZ CENTRAL · v2.4</small></div>
       <div class="ar-count" id="ar-count">0 puntos</div>
     </div>
     <div class="reticle" id="reticle" aria-hidden="true"><span></span></div>
@@ -147,7 +147,7 @@
     </div>
   </div>
   <canvas id="xr-canvas" aria-hidden="true"></canvas>
-  <script src="app.js" defer></script>
-  <script src="body.js" defer></script>
+  <script src="app.js?v=4" defer></script>
+  <script src="body.js?v=4" defer></script>
 </body>
 </html>

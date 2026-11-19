@@ -1,5 +1,6 @@
-const CACHE = 'medidor-ar-v3';
-const ASSETS = ['./', './index.html', './styles.css', './app.js', './body.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+// v4: priorizar red para documentos y scripts y conservar caché fuera de línea.
+const CACHE = 'medidor-ar-v4';
+const ASSETS = ['./', './index.html', './styles.css?v=4', './app.js?v=4', './body.js?v=4', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
@@ -8,5 +9,24 @@ self.addEventListener('activate', event => {
 });
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || new URL(event.request.url).origin !== location.origin) return;
-  event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));
+  const url = new URL(event.request.url);
+  const fresh = event.request.mode === 'navigate' || /\.(html|js|css)$/.test(url.pathname);
+  if (!fresh) {
+    event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));
+    return;
+  }
+  event.respondWith(
+    fetch(event.request).then(response => {
+      if (response.ok) {
+        const copy = response.clone();
+        event.waitUntil(caches.open(CACHE).then(cache => cache.put(event.request,copy)).catch(() => {}));
+      }
+      return response;
+    }).catch(async () => {
+      const cache = await caches.open(CACHE);
+      return await cache.match(event.request) ||
+        (event.request.mode === 'navigate' ? await cache.match('./index.html') : null) ||
+        Response.error();
+    })
+  );
 });

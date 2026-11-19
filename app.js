@@ -10,6 +10,9 @@
   let session = null;
   let refSpace = null;
   let hitSource = null;
+  let viewerSpace = null;
+  let hitRequestPending = false;
+  let hitSourceFailed = false;
   let gl = null;
   let renderer = null;
   let lastHit = null;
@@ -119,13 +122,45 @@
     if(points.length>=2){gl.lineWidth(3);gl.drawArrays(mode==='length'?gl.LINE_STRIP:gl.LINE_STRIP,0,points.length);
       if(mode!=='length'&&points.length>=3){const poly=points.flatMap(p=>[p.x,p.y,p.z]);poly.push(points[0].x,points[0].y,points[0].z);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(poly),gl.DYNAMIC_DRAW);gl.drawArrays(gl.LINE_STRIP,0,points.length+1);gl.bufferData(gl.ARRAY_BUFFER,coord,gl.DYNAMIC_DRAW);}
     }
-    gl.uniform1i(obj.round,1);gl.uniform4f(obj.color,0.3,1,0.82,1);gl.drawArrays(gl.POINTS,0,points.length);
+    gl.uniform1f(obj.size,6);gl.uniform1i(obj.round,1);gl.uniform4f(obj.color,0.3,1,0.82,1);gl.drawArrays(gl.POINTS,0,points.length);
   }
 
+  // Orientar el rayo real hacia el píxel central del visor, incluso en
+  // cámaras con proyección óptica asimétrica. La cruz se dibuja en NDC(0,0).
+  async function requestCenteredHitTest(view) {
+    if (!session || !viewerSpace || hitSource || hitRequestPending || hitSourceFailed) return;
+    const activeSession=session;
+    hitRequestPending=true;
+    try {
+      const m=view.projectionMatrix;
+      const dx=m[8]/m[0], dy=m[9]/m[5];
+      let source=null;
+      if (typeof XRRay === 'function' && Number.isFinite(dx) && Number.isFinite(dy)) {
+        try {
+          const ray=new XRRay({x:0,y:0,z:0,w:1},{x:dx,y:dy,z:-1,w:0});
+          source=await activeSession.requestHitTestSource({space:viewerSpace,offsetRay:ray});
+        } catch (err) {
+          console.warn('No admite rayos desplazados; usar centrado estándar.',err);
+        }
+      }
+      if (!source) source=await activeSession.requestHitTestSource({space:viewerSpace});
+      if (session===activeSession) hitSource=source;
+      else source.cancel();
+    } catch(err) {
+      if(session===activeSession){
+        hitSourceFailed=true;
+        showNotice('No se pudo detectar superficies en la cámara AR.');
+        console.warn('No se pudo crear la detección de superficies.',err);
+      }
+    } finally {
+      if (session===activeSession) hitRequestPending=false;
+    }
+  }
   function onFrame(time,frame) {
     if(!session)return;
     session.requestAnimationFrame(onFrame);
     const pose=frame.getViewerPose(refSpace);
+    if(pose?.views?.length) void requestCenteredHitTest(pose.views[0]);
     let hit=null;
     try {
       const hits=hitSource?frame.getHitTestResults(hitSource):[];
@@ -144,7 +179,7 @@
     if(!supported()){showNotice('Este navegador no dispone de WebXR. Abre la PWA con Chrome en Android compatible.');return;}
     overlay.hidden=false;
     $('ar-mode-label').textContent=modeLabels[mode];
-    points=[];lastHit=null;updateControls();trackStatus(false);
+    points=[];lastHit=null;hitSource=null;viewerSpace=null;hitRequestPending=false;hitSourceFailed=false;updateControls();trackStatus(false);
     let requested;
     try {
       // Es esencial solicitar la sesión directamente desde el gesto del usuario.
@@ -160,8 +195,8 @@
       renderer=initRenderer(gl);
       await session.updateRenderState({baseLayer:new XRWebGLLayer(session,gl,{alpha:true,depth:true,stencil:false})});
       refSpace=await session.requestReferenceSpace('local');
-      const viewerSpace=await session.requestReferenceSpace('viewer');
-      hitSource=await session.requestHitTestSource({space:viewerSpace});
+      viewerSpace=await session.requestReferenceSpace('viewer');
+      // La primera matriz de proyección define la dirección precisa del rayo.
       session.addEventListener('end',resetSession,{once:true});
       canvas.classList.add('active');
       session.requestAnimationFrame(onFrame);
@@ -172,7 +207,7 @@
       else resetSession();
     }
   }
-  function resetSession(){session=null;hitSource=null;refSpace=null;lastHit=null;points=[];renderer=null;overlay.hidden=true;canvas.classList.remove('active');renderRecords();}
+  function resetSession(){hitSource?.cancel();session=null;hitSource=null;viewerSpace=null;hitRequestPending=false;hitSourceFailed=false;refSpace=null;lastHit=null;points=[];renderer=null;overlay.hidden=true;canvas.classList.remove('active');renderRecords();}
   function addPoint(){if(!session||!lastHit)return;if(mode==='length'&&points.length>=2)return;points.push({...lastHit});updateControls();}
   function saveMeasurement(){
     if(points.length<required())return;

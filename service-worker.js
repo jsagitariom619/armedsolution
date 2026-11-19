@@ -1,4 +1,4 @@
-const CACHE = 'medidor-ar-v2';
+const CACHE = 'medidor-ar-v3';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './body.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));

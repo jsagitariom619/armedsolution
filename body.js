@@ -125,10 +125,32 @@
     {key:'waistWidth',label:'Cintura',color:'#45d7c5',ratio:.68},
     {key:'hipWidth',label:'Cadera',color:'#8b79ff',ratio:1}
   ];
+  // Mantener paquete y WASM en una misma versión estable.
+  // Si el CDN primario falla en Android, probar un segundo proveedor.
+  const visionBases=[
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.21',
+    'https://unpkg.com/@mediapipe/tasks-vision@0.10.21'
+  ];
+  let visionRuntime=null;
+  async function loadVisionRuntime(){
+    if(visionRuntime)return visionRuntime;
+    for(const base of visionBases){
+      try{
+        const module=await import(base+'/vision_bundle.mjs');
+        const {PoseLandmarker,ImageSegmenter,FilesetResolver}=module;
+        if(!PoseLandmarker||!ImageSegmenter||!FilesetResolver)throw new Error('El módulo no contiene las clases esperadas.');
+        const fileset=await FilesetResolver.forVisionTasks(base+'/wasm');
+        visionRuntime={PoseLandmarker,ImageSegmenter,fileset};
+        return visionRuntime;
+      }catch(error){
+        console.warn('MediaPipe no disponible desde '+base,error);
+      }
+    }
+    throw new Error('No se pudo descargar la IA desde ninguno de los proveedores. Comprueba tu conexión y vuelve a intentar.');
+  }
   async function ensureDetectors(){
     if(!landmarker||!segmenter){
-      const {PoseLandmarker,ImageSegmenter,FilesetResolver}=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs');
-      const vision=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm');
+      const {PoseLandmarker,ImageSegmenter,fileset:vision}=await loadVisionRuntime();
       if(!landmarker){
         try{landmarker=await PoseLandmarker.createFromOptions(vision,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:'GPU'},runningMode:'IMAGE',numPoses:1});}
         catch{landmarker=await PoseLandmarker.createFromOptions(vision,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:'CPU'},runningMode:'IMAGE',numPoses:1});}
@@ -278,8 +300,7 @@
       if(!landmarker){
         // La librería y el modelo se descargan desde servidores oficiales/CDN;
         // la foto se procesa en este navegador, nunca se envía a un servicio de análisis.
-        const {PoseLandmarker,FilesetResolver}=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs');
-        const vision=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm');
+        const {PoseLandmarker,fileset:vision}=await loadVisionRuntime();
         try{
           landmarker=await PoseLandmarker.createFromOptions(vision,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:'GPU'},runningMode:'IMAGE',numPoses:1});
         }catch{

@@ -1,6 +1,6 @@
-// v6: separar selección de galería y captura de cámara en medidas corporales.
-const CACHE = 'medidor-ar-v6';
-const ASSETS = ['./', './index.html', './styles.css?v=6', './app.js?v=4', './body.js?v=6', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+// v7: corregir descarga de MediaPipe para reconocimiento corporal.
+const CACHE = 'medidor-ar-v7';
+const ASSETS = ['./', './index.html', './styles.css?v=6', './app.js?v=4', './body.js?v=7', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });

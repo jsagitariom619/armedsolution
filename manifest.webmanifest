@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "Medidor AR — MedSolution",
+  "short_name": "Medidor AR",
+  "description": "Medición de objetos con AR y registro corporal por fotografía calibrada o cinta métrica",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f6fb",
+  "theme_color": "#0b1932",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

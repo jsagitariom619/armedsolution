@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=5">
+  <link rel="stylesheet" href="styles.css?v=6">
   <title>Medidor AR — MedSolution</title>
 </head>
 <body>
@@ -18,7 +18,7 @@
     <header class="topbar">
       <div class="brand-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><rect x="3" y="8" width="26" height="16" rx="4" stroke="currentColor" stroke-width="2"/><path d="M8 13v5m5-5v3m5-3v5m5-5v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
       <div><p class="eyebrow">MEDSOLUTION</p><strong>Medidor AR</strong></div>
-      <span class="version">BETA · v2.4</span>
+      <span class="version">BETA · v2.5</span>
     </header>
 
     <nav class="workspace-tabs" role="tablist" aria-label="Módulos de medición">
@@ -70,9 +70,13 @@
         <div class="section-number">02 / MEDICIÓN AUTOMÁTICA CON IA</div>
         <h2>Anchuras corporales estimadas</h2>
         <p class="field-info">Toma una foto frontal con la persona de pie, erguida y con los brazos algo separados. Usa buena iluminación y un fondo despejado. La foto se procesa en este dispositivo y no se conserva.</p>
-        <label class="field-label" for="photo-upload">Fotografía frontal</label>
-        <label class="upload-photo" for="photo-upload"><span>＋</span> Tomar foto o elegir imagen</label>
-        <input id="photo-upload" type="file" accept="image/*" capture="environment" class="visually-hidden">
+        <div class="field-label">Fotografía frontal</div>
+        <div class="photo-source-actions" role="group" aria-label="Elegir origen de la fotografía">
+          <label class="upload-photo" for="photo-camera"><span aria-hidden="true">📷</span> Tomar fotografía</label>
+          <label class="upload-photo" for="photo-upload"><span aria-hidden="true">▧</span> Elegir de galería</label>
+        </div>
+        <input id="photo-camera" type="file" accept="image/*" capture="environment" class="visually-hidden" aria-label="Tomar fotografía con la cámara">
+        <input id="photo-upload" type="file" accept="image/*" class="visually-hidden" aria-label="Elegir fotografía de galería">
         <label class="field-label" for="known-height">Estatura conocida (cm), opcional</label>
         <div class="input-row"><input class="field-input" id="known-height" type="number" min="80" max="250" step="0.1" inputmode="decimal" placeholder="Solo si la conoces"><button id="calibrate-height" class="outline" type="button">Calibrar con estatura</button></div>
         <p class="field-info">También puedes calibrar con una regla u objeto de longitud conocida en el mismo plano del cuerpo usando «Calibrar escala» más abajo. Sin calibración válida no se mostrarán centímetros.</p>
@@ -166,6 +170,6 @@
   </div>
   <canvas id="xr-canvas" aria-hidden="true"></canvas>
   <script src="app.js?v=4" defer></script>
-  <script src="body.js?v=5" defer></script>
+  <script src="body.js?v=6" defer></script>
 </body>
 </html>

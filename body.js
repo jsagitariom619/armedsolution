@@ -324,7 +324,16 @@
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`medidas-corporales-${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);
   }
   document.querySelectorAll('[data-body-tool]').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.bodyTool)));
-  $('photo-upload').addEventListener('change',e=>loadPhoto(e.target.files?.[0]));
+  // Android puede abrir la cámara directamente cuando existe capture.
+  // Mantenemos dos entradas independientes y una sola ruta de procesamiento.
+  ['photo-camera','photo-upload'].forEach(id=>{
+    $(id).addEventListener('change',event=>{
+      const file=event.target.files?.[0];
+      if(file)loadPhoto(file);
+      // Permite volver a seleccionar la misma imagen después.
+      event.target.value='';
+    });
+  });
   $('auto-measure').addEventListener('click',()=>detectAutomatic());
   $('calibrate-height').addEventListener('click',()=>detectAutomatic({useHeight:true}));
   $('undo-auto-edit').addEventListener('click',()=>{const previous=autoEdits.pop();if(previous)autoRows=previous;renderAutoSummary();renderCanvas();});

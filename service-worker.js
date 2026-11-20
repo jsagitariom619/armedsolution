@@ -1,6 +1,6 @@
-// v5: actualizar la interfaz corporal automática y conservar caché fuera de línea.
-const CACHE = 'medidor-ar-v5';
-const ASSETS = ['./', './index.html', './styles.css?v=5', './app.js?v=4', './body.js?v=5', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+// v6: separar selección de galería y captura de cámara en medidas corporales.
+const CACHE = 'medidor-ar-v6';
+const ASSETS = ['./', './index.html', './styles.css?v=6', './app.js?v=4', './body.js?v=6', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });

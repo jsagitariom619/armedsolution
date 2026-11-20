@@ -23,6 +23,13 @@
   let currentMeasurement = null;
   let overlayHint = '';
   let busy = false;
+  let frontalBounds = null;
+  let lateralImage = null;
+  let lateralDepths = null;
+  let sideBusy = false;
+  let imageGroupId = idForGroup();
+  function idForGroup(){return (globalThis.crypto?.randomUUID?.())||'g-'+Date.now()+'-'+Math.random().toString(36).slice(2);}
+
   try { const saved=JSON.parse(localStorage.getItem(storageKey)||'[]'); records=Array.isArray(saved)?saved:[]; } catch {records=[];}
   const id = () => (globalThis.crypto?.randomUUID?.()) || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const safeTime = value => { try { return new Date(value).toLocaleString('es-BO',{timeZone:'America/La_Paz',dateStyle:'short',timeStyle:'short'}); } catch {return value;} };
@@ -85,11 +92,13 @@
     for(const record of records){
       const card=document.createElement('div');card.className='record';
       const left=document.createElement('div');const h=document.createElement('strong');h.textContent=record.label||pointName(record.type);
-      const methodLabel=record.method==='ai-calibrated'?'IA automática calibrada':record.method==='camera'?'Foto calibrada':'Cinta / ingreso manual';
+      const methodLabel=record.method==='simulated-front'?'Simulación con foto frontal':record.method==='simulated-two-view'?'Simulación con dos fotos':record.method==='ai-calibrated'?'IA automática calibrada':record.method==='camera'?'Foto calibrada':'Cinta / ingreso manual';
       const detail=document.createElement('p');detail.textContent=`${safeTime(record.date)} · ${methodLabel}${record.code?' · Ref.: '+record.code:''}`;
       left.append(h,detail);
       const right=document.createElement('div');right.className='record-right';
-      const value=document.createElement('span');value.className='record-val';value.textContent=present(record.cm);
+      const value=document.createElement('span');value.className='record-val';value.textContent=Number.isFinite(record.minCm)&&Number.isFinite(record.maxCm)
+        ? `${record.minCm.toFixed(1)}–${record.maxCm.toFixed(1)} cm`
+        : present(record.cm);
       const del=document.createElement('button');del.className='trash';del.textContent='✕';del.title='Eliminar';del.setAttribute('aria-label','Eliminar medición corporal');
       del.addEventListener('click',()=>{if(confirm('¿Eliminar esta medida corporal?')){records=records.filter(r=>r.id!==record.id);persist();renderRecords();}});
       right.append(value,del);card.append(left,right);root.appendChild(card);
@@ -104,7 +113,11 @@
       URL.revokeObjectURL(url);image=img;
       const scale=Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight));
       bodyCanvas.width=Math.max(1,Math.round(img.naturalWidth*scale));bodyCanvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
-      calibration=null;autoLandmarks=null;silhouette=null;autoRows=[];automaticRows=[];autoEdits=[];setTool('calibrate');
+      calibration=null;autoLandmarks=null;silhouette=null;autoRows=[];automaticRows=[];autoEdits=[];
+      frontalBounds=null;lateralImage=null;lateralDepths=null;imageGroupId=idForGroup();
+      $('circumference-section').hidden=true;$('side-photo-status').textContent='La foto lateral no se guarda.';
+      $('side-photo-preview').hidden=true;$('side-remove').hidden=true;
+      setTool('calibrate');
       $('photo-stage').hidden=false;$('results-section').hidden=true;$('silhouette-preview').hidden=true;
       $('photo-placeholder').hidden=true;bodyCanvas.hidden=false;
       $('auto-pose').disabled=false;$('auto-measure').disabled=false;
@@ -220,6 +233,8 @@
       $('auto-status').textContent='Escribe una estatura válida (80–250 cm) para poder medir.';
       $('known-height').focus();return;
     }
+    lateralDepths=null;
+    frontalBounds=null;
     busy=true;$('auto-measure').disabled=true;$('auto-measure').textContent='Analizando foto…';$('auto-status').textContent='Reconociendo la silueta en tu teléfono…';
     try{
       await ensureDetectors();
@@ -240,6 +255,7 @@
         // Landmark ankle extent is used to reject a mask that misses the feet; full mask bounds determine scale.
         if(ankleY<top||ankleY>bottom+bodyCanvas.height*.06)throw new Error('La silueta no incluye bien los pies; usa una foto de cuerpo completo.');
         calibration={cm:height,pixels:bottom-top,points:[],source:'known-height'};
+        frontalBounds={top,bottom};
       }
       if(!calibration)throw new Error('Primero calibra con una referencia conocida en el plano del cuerpo, o introduce tu estatura real y pulsa «Calibrar con estatura».');
       const shoulderY=(autoLandmarks[11].y+autoLandmarks[12].y)*.5*bodyCanvas.height;
@@ -257,12 +273,15 @@
       automaticRows=snapshotRows();
       $('results-section').hidden=false;$('auto-summary').hidden=false;$('auto-actions').hidden=false;
       $('auto-status').textContent=`Listo. Se estimaron ${valid} de 4 anchuras. Son valores aproximados de una foto frontal.`;
-      renderAutoSummary();renderCanvas();renderSilhouettePreview();
+      renderAutoSummary();renderCanvas();renderSilhouettePreview();renderCircumferences();
     }catch(err){
       $('results-section').hidden=true;
       $('auto-status').textContent=err.message||'No se pudo medir esta fotografía. Prueba otra con el cuerpo completo.';
       console.warn('Body automatic measurement',err);
-    }finally{busy=false;$('auto-measure').disabled=!image;$('auto-measure').textContent='Medir automáticamente';}
+    }finally{
+      busy=false;$('auto-measure').disabled=!image;$('auto-measure').textContent='Medir automáticamente';
+      if(lateralImage && !document.getElementById('results-section').hidden)void analyzeLateralPhoto();
+    }
   }
   function rowValue(row){return row.valid&&calibration?pxDistance(row.left,row.right)*calibration.cm/calibration.pixels:null;}
   function renderAutoSummary(){
@@ -270,12 +289,168 @@
     for(const row of autoRows){const item=document.createElement('div');item.className='auto-result';const name=document.createElement('span');name.textContent=row.label;const value=document.createElement('strong');value.textContent=row.valid&&rowValue(row)?`${rowValue(row).toFixed(1)} cm`:'No detectado';item.style.setProperty('--region',row.color);item.append(name,value);root.append(item);}
     $('undo-auto-edit').disabled=!autoEdits.length;
   }
+
+  // Simulación explícita: en frontal se asume profundidad del 50% al 90% del ancho.
+  // Con foto lateral se usa profundidad segmentada y un modelo de sección elíptica.
+  const circumDefinitions=[
+    {key:'bustWidth',label:'Busto',type:'circumBust'},
+    {key:'waistWidth',label:'Cintura',type:'circumWaist'},
+    {key:'hipWidth',label:'Cadera',type:'circumHip'}
+  ];
+  function circumferenceEstimates(){
+    const math=window.MedSolutionCircumference;
+    if(!math)return [];
+    return circumDefinitions.map(def=>{
+      const row=autoRows.find(x=>x.key===def.key),width=row?rowValue(row):null;
+      if(!width||!Number.isFinite(width))return {...def,estimate:null};
+      const depth=lateralDepths?.[def.key];
+      const estimate=depth?math.twoView(width,depth):math.frontalRange(width);
+      return {...def,estimate};
+    });
+  }
+  function renderCircumferences(){
+    const root=$('circumference-summary');root.replaceChildren();
+    const estimates=circumferenceEstimates();
+    if(!autoRows.length||!estimates.length){$('circumference-section').hidden=true;return;}
+    $('circumference-section').hidden=false;
+    for(const entry of estimates){
+      const card=document.createElement('div');card.className='circumference-item';
+      const line=document.createElement('div'),name=document.createElement('b'),value=document.createElement('strong');
+      name.textContent=entry.label;
+      const m=entry.estimate;
+      value.textContent=!m?'No estimable':m.kind==='two-view'? '≈ '+m.cm.toFixed(1)+' cm' :m.minCm.toFixed(1)+'–'+m.maxCm.toFixed(1)+' cm';
+      const detail=document.createElement('small');
+      detail.textContent=!m?'No se detectó un ancho fiable en esta región.':
+        m.kind==='two-view'?'Simulación elíptica: ancho frontal + profundidad lateral. No es una medición clínica.':
+        'Rango hipotético de una foto: profundidad supuesta del 50% al 90% del ancho. No equivale a un intervalo estadístico de confianza.';
+      line.append(name,value);card.append(line,detail);root.append(card);
+    }
+  }
+  function sideMaskAt(mask,width,height,x,y){
+    const px=Math.max(0,Math.min(mask.width-1,Math.floor(x/width*mask.width)));
+    const py=Math.max(0,Math.min(mask.height-1,Math.floor(y/height*mask.height)));
+    const value=mask.data[py*mask.width+px];
+    return mask.confidence?value>=mask.threshold:value>0;
+  }
+  function sideEdges(mask,w,h,y,centerX=null){
+    const step=Math.max(1,Math.round(w/700)),runs=[];
+    let first=null,previous=null;
+    for(let x=0;x<w;x+=step){
+      if(sideMaskAt(mask,w,h,x,y)){
+        if(first===null)first=x;previous=x;
+      }else if(first!==null){runs.push({left:first,right:previous});first=null;}
+    }
+    if(first!==null)runs.push({left:first,right:previous});
+    const good=runs.filter(r=>r.right-r.left>=w*.02);
+    if(!good.length)return null;
+    if(Number.isFinite(centerX)){
+      const near=good.filter(r=>centerX>=r.left-w*.08&&centerX<=r.right+w*.08);
+      if(near.length)return near.sort((a,b)=>(b.right-b.left)-(a.right-a.left))[0];
+    }
+    return good.sort((a,b)=>(b.right-b.left)-(a.right-a.left))[0];
+  }
+  function sideBoundsFor(mask,w,h){
+    let top=h,bottom=0;
+    const step=Math.max(1,Math.floor(h/450));
+    for(let y=0;y<h;y+=step){
+      const e=sideEdges(mask,w,h,y);
+      if(e && e.right-e.left>=w*.025){top=Math.min(top,y);bottom=Math.max(bottom,y);}
+    }
+    return top<bottom?{top,bottom}:null;
+  }
+  async function loadLateralPhoto(file){
+    if(!file)return;
+    if(!file.type.startsWith('image/')||file.size>25*1024*1024){
+      $('side-photo-status').textContent='Selecciona una fotografía compatible, de menos de 25 MB.';return;
+    }
+    const url=URL.createObjectURL(file),img=new Image();
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      lateralImage=img;lateralDepths=null;
+      const scale=Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight));
+      const preview=$('side-photo-preview');
+      preview.width=Math.max(1,Math.round(img.naturalWidth*scale));
+      preview.height=Math.max(1,Math.round(img.naturalHeight*scale));
+      preview.getContext('2d').drawImage(img,0,0,preview.width,preview.height);
+      preview.hidden=false;$('side-remove').hidden=false;
+      $('side-photo-status').textContent='Foto lateral lista. Calculando profundidad…';
+      renderCircumferences();void analyzeLateralPhoto();
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);$('side-photo-status').textContent='No se pudo leer la foto lateral.';};
+    img.src=url;
+  }
+  async function analyzeLateralPhoto(){
+    if(!lateralImage||!frontalBounds||!autoRows.length||sideBusy||busy)return;
+    sideBusy=true;
+    const sidePhoto=lateralImage;
+    const status=$('side-photo-status');
+    status.textContent='Analizando la silueta lateral en el teléfono…';
+    try{
+      await ensureDetectors();
+      if(lateralImage!==sidePhoto)return;
+      const canvas=$('side-photo-preview');
+      const pose=landmarker.detect(canvas),result=segmenter.segment(canvas);
+      if(!pose.landmarks?.length)throw new Error('No se identificó una persona en la foto lateral.');
+      const mask=readMask(result);
+      if(!mask)throw new Error('No se identificó la silueta lateral.');
+      const bounds=sideBoundsFor(mask,canvas.width,canvas.height);
+      if(!bounds||bounds.bottom-bounds.top<canvas.height*.45)throw new Error('Necesitamos una foto lateral de cuerpo entero, desde cabeza hasta pies.');
+      const landmarks=pose.landmarks[0];
+      const torso=[11,12,23,24].filter(i=>landmarks[i]&&landmarks[i].visibility>.3);
+      if(torso.length<2)throw new Error('Los hombros y la cadera no se distinguen en la foto lateral.');
+      const centerX=torso.reduce((sum,i)=>sum+landmarks[i].x,0)/torso.length*canvas.width;
+      const ratio=Number($('known-height').value)/(bounds.bottom-bounds.top);
+      const depths={};
+      for(const def of circumDefinitions){
+        const row=autoRows.find(x=>x.key===def.key);
+        if(!row?.valid)continue;
+        const fractional=(row.y-frontalBounds.top)/(frontalBounds.bottom-frontalBounds.top);
+        if(fractional<.08||fractional>.86)continue;
+        const y=bounds.top+fractional*(bounds.bottom-bounds.top);
+        const edges=sideEdges(mask,canvas.width,canvas.height,y,centerX);
+        if(!edges)continue;
+        const depth=(edges.right-edges.left)*ratio;
+        const width=rowValue(row);
+        if(Number.isFinite(depth)&&depth>0&&width&&depth>=width*.25&&depth<=width*1.4)depths[def.key]=depth;
+      }
+      if(lateralImage!==sidePhoto)return;
+      if(!Object.keys(depths).length)throw new Error('No se identificó una profundidad útil. Prueba una foto totalmente de perfil y sin brazos delante del torso.');
+      lateralDepths=depths;
+      status.textContent='Se usó la profundidad lateral en '+Object.keys(depths).length+' de 3 regiones. Las restantes siguen como rangos simulados.';
+      renderCircumferences();$('auto-actions').hidden=false;
+    }catch(error){
+      if(lateralImage!==sidePhoto)return;
+      lateralDepths=null;renderCircumferences();
+      status.textContent=error.message||'No se pudo medir la profundidad lateral; se mantienen los rangos de la foto frontal.';
+      console.warn('Lateral estimation',error);
+    }finally{sideBusy=false;}
+  }
+  function removeLateralPhoto(){
+    lateralImage=null;lateralDepths=null;
+    $('side-photo-preview').hidden=true;$('side-remove').hidden=true;
+    $('side-photo-status').textContent='Foto lateral eliminada. Se muestran rangos simulados a partir de la fotografía frontal.';
+    renderCircumferences();
+  }
   function snapshotRows(){return autoRows.map(r=>({...r,left:{...r.left},right:{...r.right}}));}
-  function restoreAuto(){if(!automaticRows.length){$('auto-status').textContent='Primero detecta la silueta.';return;}autoRows=automaticRows.map(r=>({...r,left:{...r.left},right:{...r.right}}));autoEdits=[];renderAutoSummary();renderCanvas();$('auto-status').textContent='Puntos automáticos restablecidos.';}
+  function restoreAuto(){if(!automaticRows.length){$('auto-status').textContent='Primero detecta la silueta.';return;}autoRows=automaticRows.map(r=>({...r,left:{...r.left},right:{...r.right}}));autoEdits=[];renderAutoSummary();renderCanvas();renderCircumferences();$('auto-status').textContent='Puntos automáticos restablecidos.';}
   function confirmAuto(){
-    const valid=autoRows.filter(r=>r.valid&&rowValue(r));if(!valid.length){$('auto-status').textContent='No hay anchuras calibradas para guardar.';return;}
-    const ok=valid.every(row=>addRecord({type:row.key,label:`Ancho de ${row.label.toLowerCase()}`,cm:Number(rowValue(row).toFixed(1)),method:'ai-calibrated'}));
-    if(ok){$('auto-status').textContent=`Guardadas ${valid.length} anchuras estimadas. La fotografía no se almacenó.`;$('auto-actions').hidden=true;}
+    const valid=autoRows.filter(r=>r.valid&&rowValue(r));
+    if(!valid.length){$('auto-status').textContent='No hay anchuras calibradas para guardar.';return;}
+    const now=new Date().toISOString(),code=$('body-code').value.trim().slice(0,60);
+    const entries=valid.map(row=>({id:id(),groupId:imageGroupId,date:now,code,type:row.key,label:`Ancho de ${row.label.toLowerCase()}`,cm:Number(rowValue(row).toFixed(1)),method:'ai-calibrated'}));
+    for(const item of circumferenceEstimates()){
+      const m=item.estimate;
+      if(!m)continue;
+      const entry={id:id(),groupId:imageGroupId,date:now,code,type:item.type,label:'Circunferencia simulada de '+item.label.toLowerCase(),method:m.kind==='two-view'?'simulated-two-view':'simulated-front',cm:Number((m.kind==='front'?m.midCm:m.cm).toFixed(1)),frontWidthCm:Number(m.widthCm.toFixed(1)),model:'ellipse-ramanujan'};
+      if(m.kind==='front'){entry.minCm=Number(m.minCm.toFixed(1));entry.maxCm=Number(m.maxCm.toFixed(1));entry.depthRatioAssumption=[.5,.9];}
+      else entry.depthCm=Number(m.depthCm.toFixed(1));
+      entries.push(entry);
+    }
+    const old=records;
+    records=[...entries,...records.filter(r=>r.groupId!==imageGroupId)];
+    if(persist()){
+      renderRecords();$('auto-status').textContent='Se guardaron '+entries.length+' resultados. Las circunferencias están identificadas como simuladas.';$('auto-actions').hidden=true;
+    }else records=old;
   }
   function computeUsingPoints(list,type='arbitrary'){
     if(!calibration)return null;
@@ -318,7 +493,7 @@
   bodyCanvas.addEventListener('pointermove',event=>{
     if(!dragging)return;const p=pointFromPointer(event);const row=autoRows[dragging.ri];
     row[dragging.side]={x:Math.max(0,Math.min(bodyCanvas.width,p.x)),y:row.y};
-    renderAutoSummary();renderCanvas();
+    renderAutoSummary();renderCanvas();renderCircumferences();
   });
   bodyCanvas.addEventListener('pointerup',()=>{dragging=null;});
   bodyCanvas.addEventListener('pointercancel',()=>{dragging=null;});
@@ -369,7 +544,7 @@
   }
   function exportCSV(){
     if(!records.length)return;
-    const rows=[['Tipo','Referencia local','Fecha ISO','Centímetros','Método'],...records.map(r=>[r.label||pointName(r.type),r.code||'',r.date,r.cm,r.method==='ai-calibrated'?'IA automática con calibración':r.method==='camera'?'Foto calibrada':'Manual'])];
+    const rows=[['Tipo','Referencia local','Fecha ISO','Centímetros (centro de rango si es simulación frontal)','Método','Rango mínimo simulado (cm)','Rango máximo simulado (cm)','Profundidad lateral estimada (cm)','Modelo'],...records.map(r=>[r.label||pointName(r.type),r.code||'',r.date,r.cm,r.method==='simulated-front'?'Simulación frontal no validada':r.method==='simulated-two-view'?'Simulación dos vistas no validada':r.method==='ai-calibrated'?'IA automática con calibración':r.method==='camera'?'Foto calibrada':'Manual',r.minCm??'',r.maxCm??'',r.depthCm??'',r.model??''])];
     const csv='\ufeff'+rows.map(row=>row.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(';')).join('\r\n');
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`medidas-corporales-${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);
   }
@@ -384,6 +559,14 @@
       event.target.value='';
     });
   });
+  ['side-camera','side-upload'].forEach(inputId=>{
+    $(inputId).addEventListener('change',event=>{
+      const file=event.target.files?.[0];
+      if(file)void loadLateralPhoto(file);
+      event.target.value='';
+    });
+  });
+  $('side-remove').addEventListener('click',removeLateralPhoto);
   $('auto-measure').addEventListener('click',()=>detectAutomatic({useHeight:true}));
   $('known-height').addEventListener('change',()=>{if(image&&validHeight()&&!busy)void detectAutomatic({useHeight:true});});
   $('calibrate-height').addEventListener('click',()=>detectAutomatic({useHeight:true}));

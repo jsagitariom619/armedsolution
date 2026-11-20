@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=8">
+  <link rel="stylesheet" href="styles.css?v=9">
   <title>Medidor AR — MedSolution</title>
 </head>
 <body>
@@ -18,7 +18,7 @@
     <header class="topbar">
       <div class="brand-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><rect x="3" y="8" width="26" height="16" rx="4" stroke="currentColor" stroke-width="2"/><path d="M8 13v5m5-5v3m5-3v5m5-5v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
       <div><p class="eyebrow">MEDSOLUTION</p><strong>Medidor AR</strong></div>
-      <span class="version">BETA · v2.7</span>
+      <span class="version">BETA · v2.8</span>
     </header>
 
     <nav class="workspace-tabs" role="tablist" aria-label="Módulos de medición">
@@ -79,6 +79,24 @@
         <section class="body-results-section" id="results-section" hidden aria-label="Resultados corporales">
           <h3>Anchuras estimadas</h3>
           <div id="auto-summary" class="auto-summary" hidden></div>
+          <section id="circumference-section" class="circumference-section" hidden aria-label="Circunferencias simuladas">
+            <h3>Circunferencias simuladas</h3>
+            <p class="field-info">A partir de una sola foto se calculan rangos hipotéticos, no medidas reales del contorno.</p>
+            <div id="circumference-summary" class="circumference-summary" aria-live="polite"></div>
+            <details id="side-photo-options" class="side-photo-options">
+              <summary>Agregar foto lateral para mejorar la simulación (opcional)</summary>
+              <p class="field-info">De pie, de perfil (90°), cuerpo entero, brazos relajados sin tapar el torso y buena iluminación. La aplicación calculará automáticamente la profundidad visible.</p>
+              <div class="photo-source-actions" role="group" aria-label="Elegir foto lateral">
+                <label class="upload-photo" for="side-camera"><span aria-hidden="true">📷</span> Tomar foto lateral</label>
+                <label class="upload-photo" for="side-upload"><span aria-hidden="true">▧</span> Elegir foto lateral</label>
+              </div>
+              <input id="side-camera" type="file" accept="image/*" capture="environment" class="visually-hidden" aria-label="Tomar fotografía lateral">
+              <input id="side-upload" type="file" accept="image/*" class="visually-hidden" aria-label="Cargar fotografía lateral">
+              <p class="field-info" id="side-photo-status" role="status" aria-live="polite">La foto lateral no se guarda.</p>
+              <canvas id="side-photo-preview" hidden role="img" aria-label="Fotografía lateral seleccionada"></canvas>
+              <button id="side-remove" class="outline" type="button" hidden>Quitar foto lateral</button>
+            </details>
+          </section>
           <details class="silhouette-preview" id="silhouette-preview" hidden>
             <summary>Ver silueta frontal simulada</summary>
             <canvas id="silhouette-canvas" role="img" aria-label="Silueta 2D de la fotografía"></canvas>
@@ -182,6 +200,7 @@
   </div>
   <canvas id="xr-canvas" aria-hidden="true"></canvas>
   <script src="app.js?v=4" defer></script>
-  <script src="body.js?v=8" defer></script>
+  <script src="circumference.js?v=9" defer></script>
+  <script src="body.js?v=9" defer></script>
 </body>
 </html>

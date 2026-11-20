@@ -26,3 +26,18 @@
 .body-history>summary{font-size:13px;font-weight:750;color:#266475;cursor:pointer}
 .body-history .history-head{margin-top:20px}
 @media(max-width:410px){.body-results-section .auto-result strong{font-size:17px}.body-simple-panel .photo-source-actions .upload-photo{font-size:11px;padding:14px 6px}}
+
+/* Simulaciones de circunferencias: foto frontal, lateral opcional, v2.8. */
+.circumference-section{margin-top:18px;padding-top:18px;border-top:1px solid #dde8eb}
+.circumference-summary{display:grid;grid-template-columns:1fr;gap:8px}
+.circumference-item{border:1px solid #cce2df;background:#f5fbf9;border-radius:13px;padding:13px 15px}
+.circumference-item>div{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.circumference-item strong{font-size:18px;letter-spacing:-.015em;color:#126e64;white-space:nowrap}
+.circumference-item b{font-size:12px;color:#3f5f67}
+.circumference-item small{display:block;color:#6c8386;margin-top:7px;font-size:10px;line-height:1.5}
+.side-photo-options{margin-top:15px;background:#f4f8fc;border:1px solid #dae5ef;border-radius:13px;padding:14px}
+.side-photo-options>summary{cursor:pointer;font-weight:750;font-size:12px;line-height:1.5;color:#205b79}
+.side-photo-options .photo-source-actions .upload-photo{margin:9px 0 11px;background:white}
+#side-photo-preview{display:block;max-height:220px;max-width:100%;width:auto;margin:9px auto;border-radius:10px}
+#side-remove{padding:10px 12px;font-size:12px;margin-top:5px}
+@media(max-width:380px){.circumference-item strong{font-size:16px}.side-photo-options .photo-source-actions{gap:6px}.side-photo-options .upload-photo{font-size:10px!important}}

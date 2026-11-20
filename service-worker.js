@@ -1,6 +1,6 @@
-// v8: simplificar medición corporal automática y conservar los registros locales.
-const CACHE = 'medidor-ar-v8';
-const ASSETS = ['./', './index.html', './styles.css?v=8', './app.js?v=4', './body.js?v=8', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+// v9: simulaciones elípticas de circunferencias y foto lateral opcional.
+const CACHE = 'medidor-ar-v9';
+const ASSETS = ['./', './index.html', './styles.css?v=9', './app.js?v=4', './circumference.js?v=9', './body.js?v=9', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });

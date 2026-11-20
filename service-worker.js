@@ -1,6 +1,6 @@
-// v7: corregir descarga de MediaPipe para reconocimiento corporal.
-const CACHE = 'medidor-ar-v7';
-const ASSETS = ['./', './index.html', './styles.css?v=6', './app.js?v=4', './body.js?v=7', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+// v8: simplificar medición corporal automática y conservar los registros locales.
+const CACHE = 'medidor-ar-v8';
+const ASSETS = ['./', './index.html', './styles.css?v=8', './app.js?v=4', './body.js?v=8', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });

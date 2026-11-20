@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=6">
+  <link rel="stylesheet" href="styles.css?v=8">
   <title>Medidor AR — MedSolution</title>
 </head>
 <body>
@@ -18,7 +18,7 @@
     <header class="topbar">
       <div class="brand-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><rect x="3" y="8" width="26" height="16" rx="4" stroke="currentColor" stroke-width="2"/><path d="M8 13v5m5-5v3m5-3v5m5-5v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
       <div><p class="eyebrow">MEDSOLUTION</p><strong>Medidor AR</strong></div>
-      <span class="version">BETA · v2.6</span>
+      <span class="version">BETA · v2.7</span>
     </header>
 
     <nav class="workspace-tabs" role="tablist" aria-label="Módulos de medición">
@@ -53,12 +53,51 @@
     <div id="records" class="records" aria-live="polite"></div>
     </div>
     <div data-workspace-panel="body" hidden>
-      <section class="body-hero">
-        <span class="hero-chip"><span class="pulse"></span> ANTROPOMETRÍA ASISTIDA</span>
-        <h1>Medidas corporales</h1>
-        <p>Fotografía, calibración de escala y puntos anatómicos. Valores orientativos que puedes guardar sin conservar la foto.</p>
-        <div class="hero-stat"><strong>2 modos</strong><span>Fotografía calibrada · Registro con cinta métrica</span></div>
+      <section class="body-hero body-simple-hero">
+        <span class="hero-chip"><span class="pulse"></span> MEDSOLUTION · MEDICIÓN AUTOMÁTICA</span>
+        <h1>Tu cuerpo, en una foto</h1>
+        <p>Toma o carga una fotografía e indica la estatura. Obtén automáticamente las anchuras estimadas de hombros, busto, cintura y cadera.</p>
       </section>
+      <section class="choose body-panel body-simple-panel">
+        <h2>Medición corporal automática</h2>
+        <p class="field-info">Foto frontal de cuerpo entero, de pie, con los brazos separados del torso y buena iluminación.</p>
+        <div class="photo-source-actions" role="group" aria-label="Elegir fotografía">
+          <label class="upload-photo" for="photo-camera"><span aria-hidden="true">📷</span> Tomar foto</label>
+          <label class="upload-photo" for="photo-upload"><span aria-hidden="true">▧</span> Elegir de galería</label>
+        </div>
+        <input id="photo-camera" type="file" accept="image/*" capture="environment" class="visually-hidden" aria-label="Tomar fotografía">
+        <input id="photo-upload" type="file" accept="image/*" class="visually-hidden" aria-label="Elegir de galería">
+        <label class="field-label" for="known-height">Estatura real de la persona (cm)</label>
+        <input class="field-input" id="known-height" type="number" min="80" max="250" step="0.1" inputmode="decimal" placeholder="Ej. 165" autocomplete="off">
+        <p class="field-info">Es nuestra referencia de escala. Para calcular centímetros, la foto debe mostrar desde la cabeza hasta los pies.</p>
+        <button id="auto-measure" class="primary full-button" type="button" disabled>Medir automáticamente</button>
+        <p id="auto-status" class="field-info body-auto-status" role="status" aria-live="polite">Selecciona una foto y escribe la estatura. El análisis se iniciará automáticamente.</p>
+        <div class="photo-stage" id="photo-stage" hidden>
+          <div id="photo-placeholder" class="photo-placeholder"><span>◎</span><strong>Sin fotografía</strong><small>La imagen se procesa localmente y no se guarda en el historial.</small></div>
+          <canvas id="body-canvas" hidden aria-label="Fotografía con puntos para calibrar o medir"></canvas>
+        </div>
+        <section class="body-results-section" id="results-section" hidden aria-label="Resultados corporales">
+          <h3>Anchuras estimadas</h3>
+          <div id="auto-summary" class="auto-summary" hidden></div>
+          <details class="silhouette-preview" id="silhouette-preview" hidden>
+            <summary>Ver silueta frontal simulada</summary>
+            <canvas id="silhouette-canvas" role="img" aria-label="Silueta 2D de la fotografía"></canvas>
+            <p class="field-info">Vista plana reconstruida de la silueta detectada, no un cuerpo tridimensional.</p>
+          </details>
+          <div id="auto-actions" class="auto-actions" hidden>
+            <button id="undo-auto-edit" type="button" hidden disabled>Deshacer ajuste</button>
+            <button id="reset-auto" type="button" hidden>Restablecer puntos</button>
+            <button id="confirm-auto" class="primary" type="button">Guardar estas medidas</button>
+          </div>
+        </section>
+        <p class="body-measure-warning">Medidas aproximadas del ancho frontal visible, no perímetros. Para una medida clínica o circunferencias reales, utiliza una cinta métrica.</p>
+      </section>
+      <details class="body-history">
+        <summary>Ver historial de mediciones</summary>
+        <section class="history-head"><div><h2>Historial corporal</h2><p>Solo en este dispositivo · Sin fotografías</p></div><button id="export-body" class="outline" type="button">Exportar CSV</button></section>
+        <div id="body-records" class="records" aria-live="polite"></div>
+      </details>
+      <div class="body-hidden-compat" hidden aria-hidden="true">
       <section class="choose body-panel">
         <div class="section-number">01 / REGISTRO</div>
         <h2>Referencia de la medición <small>(opcional)</small></h2>
@@ -67,37 +106,10 @@
         <p class="field-info">El código solo se conserva en tu dispositivo junto con las medidas. Evita escribir nombres completos.</p>
       </section>
       <section class="choose body-panel">
-        <div class="section-number">02 / MEDICIÓN AUTOMÁTICA CON IA</div>
-        <h2>Anchuras corporales estimadas</h2>
-        <p class="field-info">Toma una foto frontal con la persona de pie, erguida y con los brazos algo separados. Usa buena iluminación y un fondo despejado. La foto se procesa en este dispositivo y no se conserva.</p>
-        <div class="field-label">Fotografía frontal</div>
-        <div class="photo-source-actions" role="group" aria-label="Elegir origen de la fotografía">
-          <label class="upload-photo" for="photo-camera"><span aria-hidden="true">📷</span> Tomar fotografía</label>
-          <label class="upload-photo" for="photo-upload"><span aria-hidden="true">▧</span> Elegir de galería</label>
-        </div>
-        <input id="photo-camera" type="file" accept="image/*" capture="environment" class="visually-hidden" aria-label="Tomar fotografía con la cámara">
-        <input id="photo-upload" type="file" accept="image/*" class="visually-hidden" aria-label="Elegir fotografía de galería">
-        <label class="field-label" for="known-height">Estatura conocida (cm), opcional</label>
-        <div class="input-row"><input class="field-input" id="known-height" type="number" min="80" max="250" step="0.1" inputmode="decimal" placeholder="Solo si la conoces"><button id="calibrate-height" class="outline" type="button">Calibrar con estatura</button></div>
-        <p class="field-info">También puedes calibrar con una regla u objeto de longitud conocida en el mismo plano del cuerpo usando «Calibrar escala» más abajo. Sin calibración válida no se mostrarán centímetros.</p>
-        <button id="auto-measure" class="primary full-button" type="button" disabled>Detectar silueta y medir</button>
-        <p id="auto-status" class="field-info" role="status">La detección requiere conexión para descargar los modelos la primera vez.</p>
-        <div id="auto-summary" class="auto-summary" hidden></div>
-        <div class="auto-actions" id="auto-actions" hidden>
-          <button id="undo-auto-edit" class="outline" type="button" disabled>Deshacer ajuste</button>
-          <button id="reset-auto" class="outline" type="button">Restablecer puntos</button>
-          <button id="confirm-auto" class="primary" type="button">Confirmar y guardar</button>
-        </div>
-        <div class="body-alert">Estas son anchuras frontales estimadas, no perímetros. No se calcula perímetro a partir de esta fotografía.</div>
-      </section>
-      <section class="choose body-panel">
         <div class="section-number">03 / FOTOGRAFÍA Y MEDICIÓN MANUAL</div>
         <h2>Medición asistida por cámara</h2>
         <p class="field-info">Toma una fotografía de cuerpo entero o elige una imagen. Coloca una regla de longitud conocida en el mismo plano que la zona a medir.</p>
-        <div class="photo-stage" id="photo-stage">
-          <div id="photo-placeholder" class="photo-placeholder"><span>◎</span><strong>Sin fotografía</strong><small>La imagen se procesa localmente y no se guarda en el historial.</small></div>
-          <canvas id="body-canvas" hidden aria-label="Fotografía con puntos para calibrar o medir"></canvas>
-        </div>
+
         <div class="tool-tabs" aria-label="Herramienta corporal">
           <button type="button" class="tool-tab selected" data-body-tool="calibrate" aria-pressed="true">1 · Calibrar escala</button>
           <button type="button" class="tool-tab" data-body-tool="measure" aria-pressed="false">2 · Medir segmento</button>
@@ -145,9 +157,9 @@
         <input class="field-input" id="manual-cm" type="number" min="0.1" max="350" step="0.1" inputmode="decimal" placeholder="Ej. 82.5">
         <button id="save-manual" class="primary full-button">Guardar medida manual</button>
       </section>
-      <p class="body-alert" id="body-message" role="status">Usa buena iluminación, fondo visible y una referencia física al mismo nivel de profundidad de la zona a medir.</p>
-      <section class="history-head"><div><h2>Historial corporal</h2><p>Solo en este dispositivo · Sin guardar imágenes</p></div><button id="export-body" class="outline">Exportar CSV</button></section>
-      <div id="body-records" class="records" aria-live="polite"></div>
+        <button id="calibrate-height" type="button">Calibrar con estatura</button>
+        <p id="body-message" role="status"></p>
+      </div>
     </div>
     <footer>Mediciones orientativas. No sustituyen instrumentos de precisión ni mediciones antropométricas clínicas validadas. <span>Registros guardados localmente. No se suben fotografías al servidor de la aplicación.</span></footer>
   </main>
@@ -170,6 +182,6 @@
   </div>
   <canvas id="xr-canvas" aria-hidden="true"></canvas>
   <script src="app.js?v=4" defer></script>
-  <script src="body.js?v=7" defer></script>
+  <script src="body.js?v=8" defer></script>
 </body>
 </html>

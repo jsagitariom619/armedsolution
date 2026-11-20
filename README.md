@@ -11,7 +11,9 @@ PWA de medición para teléfonos Android compatibles, preparada para pruebas en 
 
 **Medidas corporales (fotografía calibrada)**
 - Fotografía con cámara o galería; se visualiza en un lienzo local, sin guardarse en historial.
+- Medición automática experimental de anchuras frontales de hombros, busto/tórax, cintura y cadera: Pose Landmarker ubica hombros y caderas; Image Segmenter Selfie Segmenter localiza el borde visible de la silueta a esas alturas aproximadas. Los extremos se pueden arrastrar, deshacer y restablecer. La ubicación de busto y cintura se estima entre hombros y cadera y requiere revisión visual.
 - Calibración manual con referencia conocida **ubicada en el mismo plano físico** que el cuerpo (por ejemplo una regla de 30 cm colocada junto a la persona).
+- Calibración alternativa con estatura conocida introducida por el usuario y foto de cuerpo completo. Se usa el alto visible segmentado; perspectiva, calzado, cabello y máscara pueden sesgar la escala, por lo que es más aproximada que una referencia coplanar.
 - Marcar dos puntos y calcular una longitud corporal orientativa en centímetros (estatura, hombros, anchura de cadera o segmentos).
 - Detección opcional de 33 puntos de postura con MediaPipe Pose Landmarker en el navegador. Segmentos sugeridos: hombros, ancho de cadera, brazo izquierdo/derecho por codo y pierna izquierda/derecha por rodilla. La IA necesita descargar la librería y el modelo desde internet la primera vez; es opcional. No se deducen longitudes corporales en centímetros sin calibración real.
 - Registro manual de perímetros reales con cinta métrica (cintura, tórax, cadera, brazo, muslo), estatura y otras medidas. **No se estiman perímetros automáticamente desde una fotografía 2D**.
@@ -22,7 +24,7 @@ PWA de medición para teléfonos Android compatibles, preparada para pruebas en 
 1. Publicar todo el contenido de la carpeta en un hosting estático HTTPS (Cloudflare Pages, Vercel o similar). No se necesita servidor, login ni Supabase.
 2. Abrir el enlace desde Chrome para Android en el Xiaomi 12 Pro; instalar/actualizar si procede **Servicios de Google Play para RA** y conceder acceso a la cámara.
 3. En **Objetos**, comprobar el estado de compatibilidad e iniciar AR. Mover el móvil para reconocer superficies, marcar puntos y guardar.
-4. En **Medidas corporales**, tomar foto (preferiblemente con ayuda de otra persona), incluir una referencia de tamaño conocido en el mismo plano que la zona de medida, pulsar «Calibrar escala» y marcar los extremos de la referencia. Después pulsar «Medir segmento» y marcar sus extremos. O detectar postura con IA, escoger un segmento y usar sus puntos antes de guardar.
+4. En **Medidas corporales**, tomar foto frontal con la persona erguida y brazos separados. Calibrar primero con una referencia de tamaño conocido en el plano corporal o introducir la estatura real conocida para una escala aproximada de cuerpo completo. Pulsar «Detectar silueta y medir», revisar las cuatro líneas y corregir sus extremos antes de confirmar. La foto no se guarda.
 5. Para **perímetros**, medir con cinta y guardar el valor en «Registrar perímetros».
 6. En Chrome usar **Instalar aplicación / Añadir a pantalla de inicio** para instalar la PWA.
 
@@ -34,6 +36,8 @@ PWA de medición para teléfonos Android compatibles, preparada para pruebas en 
 - La API WebXR depende de la superficie detectada. ARCore admite la API de profundidad en Xiaomi 12 Pro, pero **no equivale a un escáner 3D de precisión certificada**.
 - Una medición en píxeles calibrada con un solo objeto puede verse afectada por perspectiva, postura y diferentes planos de profundidad; no debe usarse para decisiones médicas, diagnóstico, dosificación o confección de precisión sin comparación con un instrumento físico.
 - La detección de 33 puntos corporales **no determina por sí sola la estatura real ni los perímetros**. Las distancias segmentales se proyectan sobre la imagen y son orientativas.
+- La medición automática combina puntos de pose con segmentación binaria de la persona en el navegador. Los modelos iniciales se descargan desde jsDelivr y Google Storage; la imagen no se transmite. La máscara no es pixel-perfect y puede fallar con ropa holgada, brazos pegados, oclusiones, fondos similares, baja luz o más de una persona.
+- Una vista frontal produce **anchuras**, no perímetros. Las ubicaciones de busto y cintura se aproximan interpolando entre la línea de hombros y la cadera; no son referencias anatómicas clínicas. Contrastar con cinta métrica antes de usar los valores para decisiones clínicas, confección o dosificación.
 - Recursos básicos de la PWA quedan en caché. La carga inicial de MediaPipe requiere internet y su disponibilidad offline posterior no está garantizada. La funcionalidad manual y los datos locales pueden funcionar offline tras la instalación.
 - La información local puede perderse si se borran datos del navegador; utiliza la exportación CSV como respaldo. No guardar nombres, historias clínicas ni identificadores personales en el campo de referencia.
 - No se ha validado AR con el Xiaomi 12 Pro físico; eso requiere una prueba del usuario en Chrome y verificar precisión frente a un metro/cinta.
@@ -51,3 +55,4 @@ PWA de medición para teléfonos Android compatibles, preparada para pruebas en 
 - Lista oficial ARCore: https://developers.google.com/ar/devices
 - Requisitos WebXR: https://developers.google.com/ar/develop/webxr/requirements
 - Google MediaPipe Pose Landmarker: https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker
+- Google MediaPipe Image Segmenter: https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter

@@ -1,6 +1,6 @@
-// v4: priorizar red para documentos y scripts y conservar caché fuera de línea.
-const CACHE = 'medidor-ar-v4';
-const ASSETS = ['./', './index.html', './styles.css?v=4', './app.js?v=4', './body.js?v=4', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+// v5: actualizar la interfaz corporal automática y conservar caché fuera de línea.
+const CACHE = 'medidor-ar-v5';
+const ASSETS = ['./', './index.html', './styles.css?v=5', './app.js?v=4', './body.js?v=5', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });

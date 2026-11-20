@@ -12,6 +12,13 @@
   let imagePoints = [];
   let autoLandmarks = null;
   let landmarker = null;
+  let segmenter = null;
+  let silhouette = null;
+  let personMaskIndex = -1;
+  let autoRows = [];
+  let automaticRows = [];
+  let autoEdits = [];
+  let dragging = null;
   let tool = 'calibrate';
   let currentMeasurement = null;
   let overlayHint = '';
@@ -62,6 +69,16 @@
       for(const i of [11,12,13,14,15,16,23,24,25,26,27,28]){const p=autoLandmarks[i];if(!p||p.visibility<.35)continue;ctx.beginPath();ctx.arc(p.x*w,p.y*h,Math.max(3,w/280),0,Math.PI*2);ctx.fill();}
       ctx.restore();
     }
+    if(autoRows.length){
+      ctx.save();
+      for(const row of autoRows){
+        ctx.strokeStyle=row.color;ctx.fillStyle=row.color;ctx.lineWidth=Math.max(3,bodyCanvas.width/240);ctx.lineCap='round';
+        ctx.beginPath();ctx.moveTo(row.left.x,row.left.y);ctx.lineTo(row.right.x,row.right.y);ctx.stroke();
+        for(const p of [row.left,row.right]){ctx.beginPath();ctx.arc(p.x,p.y,Math.max(7,bodyCanvas.width/95),0,Math.PI*2);ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#fff';ctx.stroke();ctx.strokeStyle=row.color;}
+        ctx.font=`bold ${Math.max(12,bodyCanvas.width/48)}px system-ui`;ctx.fillText(row.label,Math.min(row.left.x,row.right.x)+4,Math.max(18,row.left.y-8));
+      }
+      ctx.restore();
+    }
     if(calibration)drawStroke(calibration.points,'#fad46d',Math.max(3,bodyCanvas.width/210));
     if(currentMeasurement?.points)drawStroke(currentMeasurement.points,'#4ce2c7',Math.max(4,bodyCanvas.width/180));
     if(selections.length)drawStroke(selections,'#fced86',Math.max(4,bodyCanvas.width/180));
@@ -74,7 +91,8 @@
     for(const record of records){
       const card=document.createElement('div');card.className='record';
       const left=document.createElement('div');const h=document.createElement('strong');h.textContent=record.label||pointName(record.type);
-      const detail=document.createElement('p');detail.textContent=`${safeTime(record.date)} · ${record.method==='camera'?'Foto calibrada':'Cinta / ingreso manual'}${record.code?' · Ref.: '+record.code:''}`;
+      const methodLabel=record.method==='ai-calibrated'?'IA automática calibrada':record.method==='camera'?'Foto calibrada':'Cinta / ingreso manual';
+      const detail=document.createElement('p');detail.textContent=`${safeTime(record.date)} · ${methodLabel}${record.code?' · Ref.: '+record.code:''}`;
       left.append(h,detail);
       const right=document.createElement('div');right.className='record-right';
       const value=document.createElement('span');value.className='record-val';value.textContent=present(record.cm);
@@ -92,12 +110,121 @@
       URL.revokeObjectURL(url);image=img;
       const scale=Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight));
       bodyCanvas.width=Math.max(1,Math.round(img.naturalWidth*scale));bodyCanvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
-      calibration=null;autoLandmarks=null;setTool('calibrate');
+      calibration=null;autoLandmarks=null;silhouette=null;autoRows=[];automaticRows=[];autoEdits=[];setTool('calibrate');
       $('photo-placeholder').hidden=true;bodyCanvas.hidden=false;
-      $('auto-pose').disabled=false;
+      $('auto-pose').disabled=false;$('auto-measure').disabled=false;
+      $('auto-summary').hidden=true;$('auto-actions').hidden=true;
       tell('Foto cargada solo en el dispositivo. Primero calibra con una referencia de tamaño conocido.');
+      $('auto-status').textContent='Foto lista. Para medir, calibra con una referencia conocida o con tu estatura real.';
     };
     img.onerror=()=>{URL.revokeObjectURL(url);tell('No se pudo leer esta fotografía.');};img.src=url;
+  }
+  const regionDefinitions=[
+    {key:'shoulders',label:'Hombros',color:'#ff5b73',ratio:0},
+    {key:'bustWidth',label:'Busto / tórax',color:'#ffb547',ratio:.30},
+    {key:'waistWidth',label:'Cintura',color:'#45d7c5',ratio:.68},
+    {key:'hipWidth',label:'Cadera',color:'#8b79ff',ratio:1}
+  ];
+  async function ensureDetectors(){
+    if(!landmarker||!segmenter){
+      const {PoseLandmarker,ImageSegmenter,FilesetResolver}=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs');
+      const vision=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm');
+      if(!landmarker){
+        try{landmarker=await PoseLandmarker.createFromOptions(vision,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:'GPU'},runningMode:'IMAGE',numPoses:1});}
+        catch{landmarker=await PoseLandmarker.createFromOptions(vision,{baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',delegate:'CPU'},runningMode:'IMAGE',numPoses:1});}
+      }
+      if(!segmenter){
+        const opts={baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/selfie_segmenter.tflite',delegate:'GPU'},runningMode:'IMAGE',outputCategoryMask:true,outputConfidenceMasks:true};
+        try{segmenter=await ImageSegmenter.createFromOptions(vision,opts);}
+        catch{segmenter=await ImageSegmenter.createFromOptions(vision,{...opts,baseOptions:{...opts.baseOptions,delegate:'CPU'}});}
+        const labels=segmenter.getLabels?.()||[];
+        personMaskIndex=labels.findIndex(label=>/person|human|foreground/i.test(label));
+      }
+    }
+  }
+  function readMask(result){
+    const masks=result.confidenceMasks||[];
+    const mask=masks.length?masks[personMaskIndex>=0?personMaskIndex:masks.length-1]:result.categoryMask;
+    if(!mask)return null;
+    let data;
+    if(result.confidenceMasks?.length){data=mask.getAsFloat32Array();return {data,width:mask.width,height:mask.height,threshold:.35,confidence:true};}
+    data=mask.getAsUint8Array();return {data,width:mask.width,height:mask.height,threshold:0,confidence:false};
+  }
+  function maskAt(x,y){
+    if(!silhouette)return false;
+    const ix=Math.max(0,Math.min(silhouette.width-1,Math.floor(x/bodyCanvas.width*silhouette.width)));
+    const iy=Math.max(0,Math.min(silhouette.height-1,Math.floor(y/bodyCanvas.height*silhouette.height)));
+    const v=silhouette.data[iy*silhouette.width+ix];
+    return silhouette.confidence?v>=silhouette.threshold:v>0;
+  }
+  function findSilhouetteEdges(y){
+    const hits=[];const step=Math.max(1,Math.round(bodyCanvas.width/800));
+    for(let x=0;x<bodyCanvas.width;x+=step)if(maskAt(x,y))hits.push(x);
+    if(hits.length<Math.max(8,bodyCanvas.width*.015))return null;
+    // Keep the widest contiguous run, avoiding isolated mask noise.
+    let best=[hits[0],hits[0]],start=hits[0],prev=hits[0];
+    for(const x of hits.slice(1)){if(x-prev>step*3){if(prev-start>best[1]-best[0])best=[start,prev];start=x;}prev=x;}
+    if(prev-start>best[1]-best[0])best=[start,prev];
+    if(best[1]-best[0]<bodyCanvas.width*.025)return null;
+    return {left:best[0],right:best[1]};
+  }
+  async function detectAutomatic({useHeight=false}={}){
+    if(!image||busy)return;
+    busy=true;$('auto-measure').disabled=true;$('auto-measure').textContent='Analizando foto…';$('auto-status').textContent='Detectando postura y segmentando la silueta localmente…';
+    try{
+      await ensureDetectors();
+      const clean=document.createElement('canvas');clean.width=bodyCanvas.width;clean.height=bodyCanvas.height;clean.getContext('2d').drawImage(image,0,0,clean.width,clean.height);
+      const pose=landmarker.detect(clean);const seg=segmenter.segment(clean);
+      if(!pose.landmarks?.length){throw new Error('No se detectó una postura completa.');}
+      autoLandmarks=pose.landmarks[0];silhouette=readMask(seg);
+      if(!silhouette)throw new Error('El modelo no devolvió una máscara de silueta.');
+      const required=[11,12,23,24];
+      if(required.some(i=>!autoLandmarks[i]||(autoLandmarks[i].visibility??0)<.5))throw new Error('No se ven con claridad los hombros y la cadera. Prueba una postura frontal con brazos separados.');
+      if(useHeight){
+        const height=Number($('known-height').value);
+        if(!Number.isFinite(height)||height<80||height>250)throw new Error('Escribe tu estatura conocida entre 80 y 250 cm.');
+        const ankleY=Math.max(autoLandmarks[27]?.y||0,autoLandmarks[28]?.y||0)*bodyCanvas.height;
+        let top=bodyCanvas.height,bottom=0;
+        for(let y=0;y<bodyCanvas.height;y+=Math.max(1,Math.round(bodyCanvas.height/500)))if(findSilhouetteEdges(y)){top=Math.min(top,y);bottom=Math.max(bottom,y);}
+        if(bottom-top<bodyCanvas.height*.35)throw new Error('La foto no muestra el cuerpo completo. No puedo calibrar con estatura.');
+        // Landmark ankle extent is used to reject a mask that misses the feet; full mask bounds determine scale.
+        if(ankleY<top||ankleY>bottom+bodyCanvas.height*.06)throw new Error('La silueta no incluye bien los pies; usa una foto de cuerpo completo.');
+        calibration={cm:height,pixels:bottom-top,points:[],source:'known-height'};
+      }
+      if(!calibration)throw new Error('Primero calibra con una referencia conocida en el plano del cuerpo, o introduce tu estatura real y pulsa «Calibrar con estatura».');
+      const shoulderY=(autoLandmarks[11].y+autoLandmarks[12].y)*.5*bodyCanvas.height;
+      const hipY=(autoLandmarks[23].y+autoLandmarks[24].y)*.5*bodyCanvas.height;
+      if(hipY<=shoulderY)throw new Error('La postura detectada no permite ubicar las regiones del torso.');
+      autoRows=[];
+      for(const def of regionDefinitions){
+        const y=shoulderY+(hipY-shoulderY)*def.ratio;const edges=findSilhouetteEdges(y);
+        if(!edges){autoRows.push({...def,valid:false,y,left:{x:0,y},right:{x:0,y},confidence:'Baja'});continue;}
+        autoRows.push({...def,valid:true,y,left:{x:edges.left,y},right:{x:edges.right,y},confidence:'Estimación visual'});
+      }
+      const valid=autoRows.filter(r=>r.valid).length;
+      if(valid<2)throw new Error('La segmentación no encontró bordes suficientes en el torso. Usa una foto con ropa contrastada y brazos separados.');
+      autoEdits=[];
+      automaticRows=snapshotRows();
+      $('auto-summary').hidden=false;$('auto-actions').hidden=false;
+      $('auto-status').textContent=`Silueta segmentada. ${valid} de 4 anchuras detectadas. Revisa las líneas; puedes arrastrar sus extremos.`;
+      renderAutoSummary();renderCanvas();
+    }catch(err){
+      $('auto-status').textContent=err.message||'Falló el análisis; puedes seguir con la medición manual.';
+      console.warn('Body automatic measurement',err);
+    }finally{busy=false;$('auto-measure').disabled=!image;$('auto-measure').textContent='Detectar silueta y medir';}
+  }
+  function rowValue(row){return row.valid&&calibration?pxDistance(row.left,row.right)*calibration.cm/calibration.pixels:null;}
+  function renderAutoSummary(){
+    const root=$('auto-summary');root.replaceChildren();
+    for(const row of autoRows){const item=document.createElement('div');item.className='auto-result';const name=document.createElement('span');name.textContent=row.label;const value=document.createElement('strong');value.textContent=row.valid&&rowValue(row)?`${rowValue(row).toFixed(1)} cm`:'No detectado';item.style.setProperty('--region',row.color);item.append(name,value);root.append(item);}
+    $('undo-auto-edit').disabled=!autoEdits.length;
+  }
+  function snapshotRows(){return autoRows.map(r=>({...r,left:{...r.left},right:{...r.right}}));}
+  function restoreAuto(){if(!automaticRows.length){$('auto-status').textContent='Primero detecta la silueta.';return;}autoRows=automaticRows.map(r=>({...r,left:{...r.left},right:{...r.right}}));autoEdits=[];renderAutoSummary();renderCanvas();$('auto-status').textContent='Puntos automáticos restablecidos.';}
+  function confirmAuto(){
+    const valid=autoRows.filter(r=>r.valid&&rowValue(r));if(!valid.length){$('auto-status').textContent='No hay anchuras calibradas para guardar.';return;}
+    const ok=valid.every(row=>addRecord({type:row.key,label:`Ancho de ${row.label.toLowerCase()}`,cm:Number(rowValue(row).toFixed(1)),method:'ai-calibrated'}));
+    if(ok){$('auto-status').textContent=`Guardadas ${valid.length} anchuras estimadas. La foto no se almacenó.`;$('auto-actions').hidden=true;autoRows=[];renderCanvas();}
   }
   function computeUsingPoints(list,type='arbitrary'){
     if(!calibration)return null;
@@ -118,7 +245,14 @@
   }
   bodyCanvas.addEventListener('pointerdown',event=>{
     if(!image)return;
-    const p=pointFromPointer(event);selections.push(p);
+    const p=pointFromPointer(event);
+    if(autoRows.length){
+      let nearest=null,dist=Infinity;
+      autoRows.forEach((row,ri)=>{if(!row.valid)return;for(const side of ['left','right']){const d=pxDistance(p,row[side]);if(d<dist){dist=d;nearest={ri,side};}}});
+      if(nearest&&dist<Math.max(28,bodyCanvas.width*.045)){autoEdits.push(snapshotRows());dragging=nearest;bodyCanvas.setPointerCapture(event.pointerId);event.preventDefault();}
+      return;
+    }
+    selections.push(p);
     if(selections.length>=2){
       if(tool==='calibrate')makeCalibrated();
       else {
@@ -130,6 +264,13 @@
     }
     syncTools();renderCanvas();
   });
+  bodyCanvas.addEventListener('pointermove',event=>{
+    if(!dragging)return;const p=pointFromPointer(event);const row=autoRows[dragging.ri];
+    row[dragging.side]={x:Math.max(0,Math.min(bodyCanvas.width,p.x)),y:row.y};
+    renderAutoSummary();renderCanvas();
+  });
+  bodyCanvas.addEventListener('pointerup',()=>{dragging=null;});
+  bodyCanvas.addEventListener('pointercancel',()=>{dragging=null;});
   async function analyzePose(){
     if(!image||busy)return;
     busy=true;$('auto-pose').disabled=true;$('auto-pose').textContent='Analizando postura…';
@@ -178,12 +319,17 @@
   }
   function exportCSV(){
     if(!records.length)return;
-    const rows=[['Tipo','Referencia local','Fecha ISO','Centímetros','Método'],...records.map(r=>[r.label||pointName(r.type),r.code||'',r.date,r.cm,r.method==='camera'?'Foto calibrada':'Manual'])];
+    const rows=[['Tipo','Referencia local','Fecha ISO','Centímetros','Método'],...records.map(r=>[r.label||pointName(r.type),r.code||'',r.date,r.cm,r.method==='ai-calibrated'?'IA automática con calibración':r.method==='camera'?'Foto calibrada':'Manual'])];
     const csv='\ufeff'+rows.map(row=>row.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(';')).join('\r\n');
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`medidas-corporales-${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);
   }
   document.querySelectorAll('[data-body-tool]').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.bodyTool)));
   $('photo-upload').addEventListener('change',e=>loadPhoto(e.target.files?.[0]));
+  $('auto-measure').addEventListener('click',()=>detectAutomatic());
+  $('calibrate-height').addEventListener('click',()=>detectAutomatic({useHeight:true}));
+  $('undo-auto-edit').addEventListener('click',()=>{const previous=autoEdits.pop();if(previous)autoRows=previous;renderAutoSummary();renderCanvas();});
+  $('reset-auto').addEventListener('click',restoreAuto);
+  $('confirm-auto').addEventListener('click',confirmAuto);
   $('body-undo').addEventListener('click',()=>{selections.pop();currentMeasurement=null;syncTools();renderCanvas();});
   $('reset-scale').addEventListener('click',()=>{calibration=null;setTool('calibrate');tell('Calibración eliminada. Vuelve a marcar la regla.');});
   $('auto-pose').addEventListener('click',analyzePose);

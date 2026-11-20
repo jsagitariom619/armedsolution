@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=4">
+  <link rel="stylesheet" href="styles.css?v=5">
   <title>Medidor AR — MedSolution</title>
 </head>
 <body>
@@ -67,11 +67,29 @@
         <p class="field-info">El código solo se conserva en tu dispositivo junto con las medidas. Evita escribir nombres completos.</p>
       </section>
       <section class="choose body-panel">
-        <div class="section-number">02 / FOTOGRAFÍA</div>
+        <div class="section-number">02 / MEDICIÓN AUTOMÁTICA CON IA</div>
+        <h2>Anchuras corporales estimadas</h2>
+        <p class="field-info">Toma una foto frontal con la persona de pie, erguida y con los brazos algo separados. Usa buena iluminación y un fondo despejado. La foto se procesa en este dispositivo y no se conserva.</p>
+        <label class="field-label" for="photo-upload">Fotografía frontal</label>
+        <label class="upload-photo" for="photo-upload"><span>＋</span> Tomar foto o elegir imagen</label>
+        <input id="photo-upload" type="file" accept="image/*" capture="environment" class="visually-hidden">
+        <label class="field-label" for="known-height">Estatura conocida (cm), opcional</label>
+        <div class="input-row"><input class="field-input" id="known-height" type="number" min="80" max="250" step="0.1" inputmode="decimal" placeholder="Solo si la conoces"><button id="calibrate-height" class="outline" type="button">Calibrar con estatura</button></div>
+        <p class="field-info">También puedes calibrar con una regla u objeto de longitud conocida en el mismo plano del cuerpo usando «Calibrar escala» más abajo. Sin calibración válida no se mostrarán centímetros.</p>
+        <button id="auto-measure" class="primary full-button" type="button" disabled>Detectar silueta y medir</button>
+        <p id="auto-status" class="field-info" role="status">La detección requiere conexión para descargar los modelos la primera vez.</p>
+        <div id="auto-summary" class="auto-summary" hidden></div>
+        <div class="auto-actions" id="auto-actions" hidden>
+          <button id="undo-auto-edit" class="outline" type="button" disabled>Deshacer ajuste</button>
+          <button id="reset-auto" class="outline" type="button">Restablecer puntos</button>
+          <button id="confirm-auto" class="primary" type="button">Confirmar y guardar</button>
+        </div>
+        <div class="body-alert">Estas son anchuras frontales estimadas, no perímetros. No se calcula perímetro a partir de esta fotografía.</div>
+      </section>
+      <section class="choose body-panel">
+        <div class="section-number">03 / FOTOGRAFÍA Y MEDICIÓN MANUAL</div>
         <h2>Medición asistida por cámara</h2>
         <p class="field-info">Toma una fotografía de cuerpo entero o elige una imagen. Coloca una regla de longitud conocida en el mismo plano que la zona a medir.</p>
-        <label class="upload-photo" for="photo-upload"><span>＋</span> Tomar foto o elegir imagen</label>
-        <input id="photo-upload" type="file" accept="image/*" class="visually-hidden">
         <div class="photo-stage" id="photo-stage">
           <div id="photo-placeholder" class="photo-placeholder"><span>◎</span><strong>Sin fotografía</strong><small>La imagen se procesa localmente y no se guarda en el historial.</small></div>
           <canvas id="body-canvas" hidden aria-label="Fotografía con puntos para calibrar o medir"></canvas>
@@ -110,7 +128,7 @@
         </div>
       </section>
       <section class="choose body-panel">
-        <div class="section-number">03 / CINTA MÉTRICA</div>
+        <div class="section-number">04 / CINTA MÉTRICA</div>
         <h2>Registrar perímetros</h2>
         <p class="field-info">Para perímetros de cintura, tórax, cadera, brazo y muslo utiliza una cinta métrica. Una sola foto no permite medirlos con fiabilidad.</p>
         <label class="field-label" for="manual-type">Medida</label>
@@ -148,6 +166,6 @@
   </div>
   <canvas id="xr-canvas" aria-hidden="true"></canvas>
   <script src="app.js?v=4" defer></script>
-  <script src="body.js?v=4" defer></script>
+  <script src="body.js?v=5" defer></script>
 </body>
 </html>
